@@ -1,9 +1,9 @@
 id: first_lora_lora_detector
-label: LoRa Detector
+label: lora detector
 category: '[First_lora]'
 templates:
-  imports: 'from gnuradio import first_lora'
-  make: 'first_lora.lora_detector(${threshold}, ${sf}, ${bw}, ${method})'
+  imports: from gnuradio import first_lora
+  make: first_lora.lora_detector(${threshold}, ${sf}, ${bw}, ${sampleRate}, ${method})
 parameters:
 - id: threshold
   label: Threshold
@@ -12,11 +12,15 @@ parameters:
 - id: sf
   label: Sf
   default: ' 7'
-  dtype: float
+  dtype: int
 - id: bw
   label: Bw
   default: ' 125000'
-  dtype: float
+  dtype: int
+- id: sampleRate
+  label: Samplerate
+  default: ' 1000000'
+  dtype: int
 - id: method
   label: Method
   dtype: enum
@@ -25,7 +29,7 @@ parameters:
 inputs:
 - label: in
   domain: stream
-  dtype: complex
+  dtype: complex 
   multiplicity: 1
 outputs:
 - label: out

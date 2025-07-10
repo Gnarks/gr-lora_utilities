@@ -42,7 +42,6 @@ class file_writer(gr.basic_block):
         num_inputs=1,
         **kwargs,
     ):
-
         # Init sync block with variale number of inputs
         gr.basic_block.__init__(
             self,
@@ -218,9 +217,9 @@ class file_writer(gr.basic_block):
 
     def general_work(self, input_items, output_items):
         n_inputs = len(input_items)
-        assert (
-            n_inputs == self.n_inputs
-        ), f"Number of inputs: {n_inputs}. Excpected: {self.n_inputs}"
+        assert n_inputs == self.n_inputs, (
+            f"Number of inputs: {n_inputs}. Excpected: {self.n_inputs}"
+        )
         print(f"Number of inputs: {n_inputs}")
         if len(self.meta) < n_inputs:
             self.meta = self.meta + [

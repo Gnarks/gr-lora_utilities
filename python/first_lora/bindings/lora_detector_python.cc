@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Free Software Foundation, Inc.
+ * Copyright 2025 Free Software Foundation, Inc.
  *
  * This file is part of GNU Radio
  *
@@ -16,7 +16,7 @@
 /* BINDTOOL_GEN_AUTOMATIC(0) */
 /* BINDTOOL_USE_PYGCCXML(0) */
 /* BINDTOOL_HEADER_FILE(lora_detector.h) */
-/* BINDTOOL_HEADER_FILE_HASH(d1fded58770aca79409611af6189ba60) */
+/* BINDTOOL_HEADER_FILE_HASH(c65d8490a655b761d952241cd3c1277f) */
 /***********************************************************************************/
 
 #include <pybind11/complex.h>
@@ -39,8 +39,8 @@ void bind_lora_detector(py::module &m) {
 
       .def(py::init(&lora_detector::make),
            py::arg("threshold") = 0.10000000000000001, py::arg("sf") = 7,
-           py::arg("bw") = 125000, py::arg("method") = 0,
-           D(lora_detector, make))
+           py::arg("bw") = 125000, py::arg("sampleRate") = 1000000,
+           py::arg("method") = 0, D(lora_detector, make))
 
       ;
 }

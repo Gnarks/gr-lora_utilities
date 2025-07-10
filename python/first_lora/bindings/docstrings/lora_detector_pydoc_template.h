@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Free Software Foundation, Inc.
+ * Copyright 2025 Free Software Foundation, Inc.
  *
  * This file is part of GNU Radio
  *
@@ -16,7 +16,7 @@
 
 static const char *__doc_gr_first_lora_lora_detector = R"doc()doc";
 
-static const char *__doc_gr_first_lora_lora_detector_lora_detector =
+static const char *__doc_gr_first_lora_lora_detector_lora_detector_0 =
     R"doc()doc";
 
 static const char *__doc_gr_first_lora_lora_detector_make = R"doc()doc";

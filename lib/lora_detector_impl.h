@@ -31,18 +31,20 @@ static const pmt::pmt_t d_pmt_detected = pmt::intern("detected");
 
 class lora_detector_impl : public lora_detector {
 private:
-  float d_threshold;                   // Threshold for detecting LoRa signal
-  uint8_t d_sf;                        // Spreading factor
-  uint32_t d_bw;                       // Bandwidth
-  uint32_t d_fs;                       // Sampling rate
-  int d_method;                        // Method used
-  int d_prev_detected = 0;             // Previous detected LoRa symbols
-  uint32_t d_sps;                      // Samples per symbol (2^sf)
-  uint32_t d_sn;                       // Number of samples
-  float d_cfo;                         // Carrier frequency offset
-  float d_max_val;                     // Maximum value of the FFT
-  std::vector<uint32_t> buffer;        // Buffer for LoRa symbol
-  std::vector<gr_complex> d_dechirped; // Dechirped samples
+  float d_threshold; // Threshold for detecting LoRa signal
+  uint8_t d_sf;      // Spreading factor
+  uint32_t d_bw;     // Bandwidth
+  uint32_t d_fs;     // Sampling rate
+  uint32_t current_sample_index =
+      0; // current sample index to keep track of the samples indices detected
+  int d_method;                            // Method used
+  int d_prev_detected = 0;                 // Previous detected LoRa symbols
+  uint32_t d_sps;                          // Samples per symbol (2^sf)
+  uint32_t d_sn;                           // Number of samples
+  float d_cfo;                             // Carrier frequency offset
+  float d_max_val;                         // Maximum value of the FFT
+  std::vector<uint32_t> buffer;            // Buffer for LoRa symbol
+  std::vector<gr_complex> d_dechirped;     // Dechirped samples
   std::vector<gr_complex> d_ref_downchirp; // Downchirp reference signal
   std::vector<gr_complex> d_ref_upchirp;   // Upchirp reference signal
   uint32_t d_fft_size;                     // FFT size
@@ -86,11 +88,11 @@ private:
    */
   std::vector<gr_complex> g_chirp2(uint8_t sf, uint32_t bw, uint32_t fs,
                                    bool upchirp) {
+
     std::vector<gr_complex> chirp;
-    uint32_t n = (1 << sf) * 2;
     int fsr = (int)fs / bw;
-    for (ulong i = 0; i < n; i++) {
-      double phase = M_PI / fsr * (i - i * i / (float)n);
+    for (ulong i = 0; i < d_sn; i++) {
+      double phase = M_PI / fsr * (i - i * i / (float)d_sn);
       chirp.push_back(gr_complex(std::polar(1.0, upchirp ? -phase : phase)));
     }
     return chirp;
@@ -99,7 +101,7 @@ private:
   std::vector<gr_complex> g_chirp3(uint8_t sf, uint32_t bw, uint32_t fs,
                                    bool upchirp) {
     std::vector<gr_complex> chirp;
-    uint32_t n = (1 << sf) * 2;
+    uint32_t n = d_sn;
     for (ulong i = 0; i < n; i++) {
       chirp.push_back(gr_complex(1.0, 1.0) *
                       gr_expj(2.0 * M_PI * 1 / fs * i *
@@ -128,9 +130,6 @@ private:
   std::vector<gr_complex> g_upchirp(uint8_t sf, uint32_t bw, uint32_t fs) {
     return g_chirp2(sf, bw, fs, true);
   }
-
-  int write_chirp_to_file(const std::vector<gr_complex> &chirp,
-                          const char *filename);
 
   /**
    * @brief Get peak of FFT using ABS comparaison
@@ -187,7 +186,8 @@ private:
   void on_detected_message(pmt::pmt_t msg);
 
 public:
-  lora_detector_impl(float threshold, uint8_t sf, uint32_t bw, int method);
+  lora_detector_impl(float threshold, uint8_t sf, uint32_t bw,
+                     uint32_t sampleRate, int method);
   ~lora_detector_impl();
 
   // Where all the action really happens
