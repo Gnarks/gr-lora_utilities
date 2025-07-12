@@ -27,7 +27,7 @@
 namespace gr {
 namespace first_lora {
 
-#define DEMOD_HISTORY (8 + 5)
+#define DEMOD_HISTORY (8 + 4.25)
 
 int write_f_to_file(float *f, const char *filename, int n);
 
@@ -91,7 +91,7 @@ lora_detector_impl::lora_detector_impl(float threshold, uint8_t sf, uint32_t bw,
   set_history(DEMOD_HISTORY * d_sn);
 
   // Set output buffer size to 8 + 5 * d_sn
-  set_output_multiple((8 + 5) * d_sn);
+  set_output_multiple(DEMOD_HISTORY * d_sn);
 }
 
 /*
@@ -221,16 +221,12 @@ int lora_detector_impl::detect_preamble(const gr_complex *in, gr_complex *out) {
   }
 
   if (preamble_detected) {
-    std::cout << "Detected preamble\nat :";
-    std::cout << current_sample_index << std::endl;
     d_state = 2;
     // Move preamble peak to bin zero
-    num_consumed = d_sn - 2 * buffer[0] / 10;
+    //          num_consumed = d_num_samples -
+    //          d_p*d_preamble_idx/d_fft_size_factor;
+    num_consumed = d_sn - d_fs / d_bw * buffer[0] / 10;
     // detected = true;
-    // std::cout << "Buffer size: " << buffer.size() << std::endl;
-    // for (ulong i = 0; i < buffer.size(); i++) {
-    //   std::cout << buffer[i] << std::endl;
-    // }
   }
 
   return num_consumed;
@@ -243,7 +239,6 @@ int lora_detector_impl::detect_sfd(const gr_complex *in, gr_complex *out,
 
   if (d_sfd_recovery++ > 5) {
     d_state = 0;
-    std::cout << "SFD recovery failed\n";
     return 0;
   }
 
@@ -253,9 +248,6 @@ int lora_detector_impl::detect_sfd(const gr_complex *in, gr_complex *out,
   if (abs(up_val) >= abs(down_val)) {
     return num_consumed;
   }
-
-  std::cout << "SFD detected\n";
-  std::cout << "Up: " << up_val << " Down: " << down_val << std::endl;
 
   num_consumed = round(1.25 * d_sn);
 
@@ -278,7 +270,7 @@ int lora_detector_impl::general_work(int noutput_items,
   }
 
   auto in0 = static_cast<const input_type *>(input_items[0]);
-  auto in = &in0[d_sn * (DEMOD_HISTORY - 1)]; // Get the last lora symbol
+  auto in = &in0[(int)(d_sn * (DEMOD_HISTORY - 1))]; // Get the last lora symbol
   auto out = static_cast<output_type *>(output_items[0]);
   uint32_t num_consumed = d_sn;
 
@@ -318,12 +310,6 @@ int lora_detector_impl::general_work(int noutput_items,
     case 1: // Preamble
       // std::cout << "State 2\n";
       num_consumed = detect_preamble(in, out);
-      if (num_consumed != d_sn) {
-        // Write the new buffer to a file
-        // write_f_to_file(b2,
-        //                 "/home/kazawai/dev/python/LoRa/LoRa/files/b2.txt",
-        //                 d_bin_size);
-      }
       d_max_val = up_val;
 
       break;
@@ -357,11 +343,11 @@ int lora_detector_impl::general_work(int noutput_items,
     // Dechirp https://dl.acm.org/doi/10.1145/3546869#d1e1181
     volk_32fc_x2_multiply_32fc(blocks, in, &d_ref_downchirp[0], d_sn);
 
-    // // Set the output to be the reference downchirp
-    memcpy(out, &d_ref_downchirp[0], d_sn * sizeof(gr_complex));
-    consume_each(d_sn);
-    current_sample_index += noutput_items;
-    return noutput_items;
+    // Set the output to be the reference downchirp
+    // memcpy(out, &d_ref_downchirp[0], d_sn * sizeof(gr_complex));
+    // consume_each(d_sn);
+    // current_sample_index += noutput_items;
+    // return noutput_items;
 
     // Return the dechirped signal
     memcpy(out, blocks, d_sn * sizeof(gr_complex));
@@ -385,16 +371,10 @@ int lora_detector_impl::general_work(int noutput_items,
     detected_count++;
     // Signal should be centered around the peak of the preamble
     // Copy the preamble to the output
-    memcpy(out, in0, (8 + 5) * d_sn * sizeof(gr_complex));
-    std::cout << "Copied to output" << std::endl;
+    memcpy(out, in0, DEMOD_HISTORY * d_sn * sizeof(gr_complex));
 
-    // Send "detected" message
-    message_port_pub(pmt::mp("detected"), pmt::from_bool(true));
-
-    std::cout << "Sended message if connected" << std::endl;
-    consume_each(noutput_items);
-    std::cout << "Consumed noutput_items" << std::endl;
-    return (8 + 5) * d_sn;
+    consume_each(DEMOD_HISTORY * d_sn);
+    return DEMOD_HISTORY * d_sn;
   } else {
     // If no peak is detected, we do not want to output anything
     consume_each(num_consumed);

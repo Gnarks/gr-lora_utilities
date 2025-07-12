@@ -1,0 +1,65 @@
+id: first_lora_detectSyncFS
+label: detectSyncFS
+category: '[first_lora]'
+
+templates:
+  imports: from gnuradio import first_lora
+  make: first_lora.detectSyncFS(sample_rate=${sample_rate}, distance=${distance}, indoor=${indoor}, save_directory=${save_directory}, scenario_name=${scenario_name}, port=${port}, ip_address=${ip_address}, other_info=${other_info})
+
+#  Make one 'parameters' list entry for every parameter you want settable from the GUI.
+#     Keys include:
+#     * id (makes the value accessible as keyname, e.g. in the make entry)
+#     * label (label shown in the GUI)
+#     * dtype (e.g. int, float, complex, byte, short, xxx_vector, ...)
+#     * default
+parameters:
+- id: sample_rate
+  label: Sample Rate
+  dtype: int
+  default: samp_rate
+- id: distance
+  label: Distance
+  dtype: float
+  default: distance
+
+- id: indoor
+  label: indoor
+  dtype: bool
+  default: False
+
+- id: save_directory
+  label: directory to save
+  dtype: string
+  default: save_directory
+
+- id: scenario_name
+  label: scenario name
+  dtype: string
+  default: scenario
+
+- id: port
+  label: port to open
+  dtype: int
+  default: 12345
+
+- id: ip_address
+  label: self ip address
+  dtype: string
+  default: "127.0.0.1"
+
+- id: other_info
+  label: other information
+  dtype: string
+  default: other_info
+
+
+inputs:
+inputs:
+- label: in
+  domain: stream
+  dtype: complex
+  vlen: 1
+
+#  'file_format' specifies the version of the GRC yml format used in the file
+#  and should usually not be changed.
+file_format: 1

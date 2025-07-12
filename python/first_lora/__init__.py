@@ -21,5 +21,6 @@ except ModuleNotFoundError:
 
 # import any pure python here
 from .file_writer import file_writer
+from .detectSyncFS import detectSyncFS
 
 #

@@ -21,7 +21,7 @@ add_subdirectory(bindings)
 ########################################################################
 gr_python_install(FILES __init__.py
     file_writer.py
-    DESTINATION ${GR_PYTHON_DIR}/gnuradio/first_lora)
+    detectSyncFS.py DESTINATION ${GR_PYTHON_DIR}/gnuradio/first_lora)
 
 ########################################################################
 # Handle the unit tests
