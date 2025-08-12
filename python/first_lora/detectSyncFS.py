@@ -48,6 +48,7 @@ class detectSyncFS(gr.sync_block):
             f"capture at {distance}m {'indoor' if indoor else 'outdoor'}. {other_info}"
         )
         self.wait_for_socket_connection()
+        self.count = 0
 
     def work(self, input_items, output_items):
         print(
@@ -60,9 +61,15 @@ class detectSyncFS(gr.sync_block):
         if self.current_cycle >= self.cycles:
             return 0
 
-        # wait for the period to save the file
-        self.save_frame_during_period(input_items, device_received, cycle_received)
-        print(f"finished saving at {time.time()}")
+        # Start the thread to handle the device id
+        # Takes a long time to save the files so had to thread it
+        save_frame = threading.Thread(
+            target=self.save_frame_during_period,
+            args=(input_items, device_received, cycle_received),
+        )
+        save_frame.start()
+
+        # self.save_frame_during_period(input_items, device_received, cycle_received)
         self.consume(0, len(input_items[0]))
         return 0
 
@@ -78,6 +85,7 @@ class detectSyncFS(gr.sync_block):
                     print("Closing connection")
                     self.current_cycle = self.cycles  # stop the receiving
                     self.conn.close()
+                    print(f"total saved : {self.count}")
                     os._exit(0)
                     return
                 if input == "remove\n":
@@ -121,17 +129,19 @@ class detectSyncFS(gr.sync_block):
             self.next += self.period
             self.next_device()
 
-        # kill the thread if all cycles are done
-        os._exit(0)
-
     def save_frame_during_period(self, data, device_received, cycle_received):
         """waiting until the next period"""
 
-        self.save_frame(data, device_received, cycle_received)
+        data = data[0]
+        # create the data file and saves it
+        filename = f"{self.save_directory}/{self.scenario_name}/device{device_received}/cycle_{cycle_received}.sigmf-data"
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        with open(filename, "ab") as f:
+            np.array(data).tofile(f)
 
         # create the metadata
         meta = SigMFFile(
-            data_file=f"{self.save_directory}/{self.scenario_name}/device{device_received}/cycle_{cycle_received}.sigmf-data",  # extension is optional
+            data_file=filename,  # extension is optional
             global_info={
                 SigMFFile.DATATYPE_KEY: "cf32_le",
                 SigMFFile.FREQUENCY_KEY: self.frequency,
@@ -143,17 +153,11 @@ class detectSyncFS(gr.sync_block):
         # save the meta file
         meta.tofile(
             f"{self.save_directory}/{self.scenario_name}/device{device_received}/cycle_{cycle_received}.sigmf-meta"
-        )  # extension is optional
-
-        print(f"{device_received} : [{cycle_received + 1}/{self.cycles}] saved")
-
-    def save_frame(self, input_items, device_received, cycle_received):
-        data = input_items[0]
-        # create the data file and saves it
-        filename = f"{self.save_directory}/{self.scenario_name}/device{device_received}/cycle_{cycle_received}.sigmf-data"
-        os.makedirs(os.path.dirname(filename), exist_ok=True)
-        with open(filename, "ab") as f:
-            np.array(data).tofile(f)
+        )
+        print(
+            f"{device_received} : [{cycle_received + 1}/{self.cycles}] saved at {time.time()}"
+        )
+        self.count += 1
 
     def next_device(self):
         # change device
