@@ -88,7 +88,9 @@ class detectSyncFS(gr.sync_block):
                     print("Closing connection")
                     self.current_cycle = self.cycles  # stop the receiving
                     self.conn.close()
-                    print(f"total saved : {self.count}")
+                    print("total saved for each device :")
+                    for i in self.counter.keys():
+                        print(f"device {i} : {self.counter[i]}")
                     os._exit(0)
                     return
                 if input == "remove\n":
@@ -101,21 +103,25 @@ class detectSyncFS(gr.sync_block):
                     print("================================")
                     # device id to be removed from the list
                     device_id = self.get_next_var_from_sock(self.conn)
+                    cycle = self.get_next_var_from_sock(self.conn)
                     restart_time = self.get_next_var_from_sock(self.conn)
                     restart_list_index = self.get_next_var_from_sock(self.conn)
                     self.handle_device_removal(
-                        device_id, restart_time, restart_list_index
+                        device_id, cycle, restart_time, restart_list_index
                     )
 
             except BlockingIOError:
                 pass
 
-    def handle_device_removal(self, device_id, restart_time, restart_list_index):
+    def handle_device_removal(self, device_id, cycle, restart_time, restart_list_index):
         # remove the crashed device to not cycle back to it
         self.device_list.remove(device_id)
         # set the next device to continue with
         self.current_index = restart_list_index
         self.current_device = self.device_list[self.current_index]
+
+        # change the current cycle to match transmitter (in case of a skipped cycle)
+        self.current_cycle = cycle
 
         # set a new start_time to loop on general work
         self.start_time = restart_time
@@ -222,6 +228,9 @@ class detectSyncFS(gr.sync_block):
         # device list to keep track of the origin of the signal
         self.device_list = self.get_next_var_from_sock(self.conn)
         print(f"device list received: {self.device_list}")
+
+        # setup the counter for each device at 0
+        self.counter = {i: 0 for i in self.device_list}
 
         # set the first device to be listened to
         self.current_device, self.current_index = self.device_list[0], 0
