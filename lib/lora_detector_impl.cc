@@ -10,6 +10,7 @@
 #include <gnuradio/io_signature.h>
 #include <gnuradio/types.h>
 #include <liquid/liquid.h>
+#include <ostream>
 #include <pmt/pmt.h>
 #include <sys/types.h>
 #include <volk/volk.h>
@@ -68,7 +69,6 @@ lora_detector_impl::lora_detector_impl(float threshold, uint8_t sf, uint32_t bw,
   std::cout << "FFT size: " << d_fft_size << std::endl;
   std::cout << "Bin size: " << d_bin_size << std::endl;
   d_cfo = 0;
-  d_max_val = 0;
   // FFT input vector
   d_mult_hf_fft = std::vector<gr_complex>(d_fft_size);
   d_fft_result = (lv_32fc_t *)malloc(d_fft_size * sizeof(lv_32fc_t));
@@ -211,23 +211,47 @@ std::pair<float, uint32_t> lora_detector_impl::dechirp(const gr_complex *in,
   return std::make_pair(max, peak);
 }
 
-int lora_detector_impl::detect_preamble(const gr_complex *in, gr_complex *out) {
+int lora_detector_impl::sliding_detect_preamble(const gr_complex *in,
+                                                gr_complex *out) {
   int num_consumed = d_sn;
-  bool preamble_detected = false;
   if (buffer.size() < MIN_PREAMBLE_CHIRPS) {
     return num_consumed;
-  } else {
-    preamble_detected = true;
   }
+  d_state = 2;
 
-  if (preamble_detected) {
-    d_state = 2;
-    // Move preamble peak to bin zero
-    //          num_consumed = d_num_samples -
-    //          d_p*d_preamble_idx/d_fft_size_factor;
-    num_consumed = d_sn - d_fs / d_bw * buffer[0] / 10;
-    // detected = true;
+  // Move preamble peak to bin zero
+  //          num_consumed = d_num_samples -
+  //          d_p*d_preamble_idx/d_fft_size_factor;
+  num_consumed = d_sn - buffer[0] / 5;
+
+  int symbol = buffer[0] / 5;
+  int offset = 1;
+
+  std::cout << "buffer[0] is actually :::: " << buffer[0] / 5 << std::endl;
+  while (symbol < 1014 && symbol >= 10) {
+    auto [up_val, up_idx] = dechirp(&in[offset], true);
+
+    symbol = up_idx / 5;
+    offset += 5;
   }
+  std::cout << "sliding offset is actually :::: " << offset << std::endl;
+  std::cout << "minus offset is   :::: " << d_sn - buffer[0] / 5 << std::endl;
+  num_consumed = offset;
+
+  return num_consumed;
+}
+
+int lora_detector_impl::detect_preamble(const gr_complex *in, gr_complex *out) {
+  int num_consumed = d_sn;
+  if (buffer.size() < MIN_PREAMBLE_CHIRPS) {
+    return num_consumed;
+  }
+  d_state = 2;
+
+  // Move preamble peak to bin zero
+  //          num_consumed = d_num_samples -
+  //          d_p*d_preamble_idx/d_fft_size_factor;
+  num_consumed = d_sn - buffer[0] / 5;
 
   return num_consumed;
 }
@@ -249,7 +273,8 @@ int lora_detector_impl::detect_sfd(const gr_complex *in, gr_complex *out,
     return num_consumed;
   }
 
-  num_consumed = round(1.25 * d_sn);
+  // changed from 1.25 to 2
+  num_consumed = round(2 * d_sn);
 
   // detected = true;
   d_state = 3;
@@ -270,7 +295,10 @@ int lora_detector_impl::general_work(int noutput_items,
   }
 
   auto in0 = static_cast<const input_type *>(input_items[0]);
-  auto in = &in0[(int)(d_sn * (DEMOD_HISTORY - 1))]; // Get the last lora symbol
+
+  // changed from 1 to 0.25
+  auto in =
+      &in0[(int)(d_sn * (DEMOD_HISTORY - 0.25))]; // Get the last lora symbol
   auto out = static_cast<output_type *>(output_items[0]);
   uint32_t num_consumed = d_sn;
 
@@ -278,14 +306,10 @@ int lora_detector_impl::general_work(int noutput_items,
   case 1: {
     // Dechirp
     auto [up_val, up_idx] = dechirp(in, true);
-    d_max_val = up_val;
 
     if (!buffer.empty()) {
-      float num = (float)up_idx - (float)buffer[0];
-      float distance = realmod(num, d_bin_size);
-      if (distance > (float)d_bin_size / 2) {
-        distance = d_bin_size - distance;
-      }
+      int num = up_idx - buffer[0];
+      int distance = num % d_bin_size;
       if (distance <= MAX_DISTANCE) {
         buffer.insert(buffer.begin(), up_idx);
       } else {
@@ -295,9 +319,6 @@ int lora_detector_impl::general_work(int noutput_items,
     } else {
       buffer.insert(buffer.begin(), up_idx);
     }
-    // std::cout << "\n--------------\nPeak: " << peak << " Max: " << max
-    //           << "\n--------------\n"
-    //           << std::endl;
 
     switch (d_state) {
     case 0: // Reset state
@@ -307,16 +328,17 @@ int lora_detector_impl::general_work(int noutput_items,
       d_state = 1;
       // std::cout << "State 0\n";
       break;
-    case 1: // Preamble
+    case 1: { // Preamble
       // std::cout << "State 2\n";
+      // num_consumed = sliding_detect_preamble(in, out);
       num_consumed = detect_preamble(in, out);
-      d_max_val = up_val;
-
       break;
-    case 2: // SFD
-      // std::cout << "State 3\n";
+    }
+    case 2: { // SFD
+              // std::cout << "State 3\n";
       num_consumed = detect_sfd(in, out, in0);
       break;
+    }
     case 3: // Output signal
       // std::cout << "State 4\n";
       // num_consumed = noutput_items;
@@ -326,15 +348,11 @@ int lora_detector_impl::general_work(int noutput_items,
     }
     break;
   }
-  case 0: { // threshold
-    detected = compare_peak(in, out);
-    num_consumed = noutput_items;
-    break;
-  }
   case 2: { // DEBUG
     // Dechirp
     gr_complex *blocks = (gr_complex *)volk_malloc(
         d_fft_size * sizeof(gr_complex), volk_get_alignment());
+
     if (blocks == NULL) {
       std::cerr << "Error: Failed to allocate memory for up_blocks\n";
       return -1;
@@ -344,16 +362,14 @@ int lora_detector_impl::general_work(int noutput_items,
     volk_32fc_x2_multiply_32fc(blocks, in, &d_ref_downchirp[0], d_sn);
 
     // Set the output to be the reference downchirp
-    // memcpy(out, &d_ref_downchirp[0], d_sn * sizeof(gr_complex));
-    // consume_each(d_sn);
-    // current_sample_index += noutput_items;
-    // return noutput_items;
+    memcpy(out, &d_ref_upchirp[0], d_sn * sizeof(gr_complex));
+    consume_each(d_sn);
+    return d_sn;
 
     // Return the dechirped signal
     memcpy(out, blocks, d_sn * sizeof(gr_complex));
     num_consumed = d_sn;
     consume_each(num_consumed);
-    current_sample_index += num_consumed;
     return num_consumed;
 
     break;
@@ -363,10 +379,10 @@ int lora_detector_impl::general_work(int noutput_items,
     return -1;
   }
 
-  // Reset output buffer
-  memset(out, 0, noutput_items * sizeof(gr_complex));
-
   if (detected) {
+
+    // Reset output buffer
+    memset(out, 0, DEMOD_HISTORY * d_sn * sizeof(gr_complex));
     std::cout << "Detected\n";
     detected_count++;
     // Signal should be centered around the peak of the preamble
@@ -378,7 +394,6 @@ int lora_detector_impl::general_work(int noutput_items,
   } else {
     // If no peak is detected, we do not want to output anything
     consume_each(num_consumed);
-    current_sample_index += num_consumed;
     return 0;
   }
 }

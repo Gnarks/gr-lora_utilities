@@ -55,15 +55,14 @@ class detectSyncFS(gr.sync_block):
             print("=====================")
 
     def work(self, input_items, output_items):
+        # stop if all captured
+        if self.current_cycle >= self.cycles:
+            return 0
         print(
             f"from device {self.current_device} received {self.current_cycle} frame at {time.time()}"
         )
         device_received = self.current_device
         cycle_received = self.current_cycle
-
-        # stop if all captured
-        if self.current_cycle >= self.cycles:
-            return 0
 
         # Start the thread to handle frames saving
         # Takes a long time to save the files so had to thread it
@@ -96,13 +95,11 @@ class detectSyncFS(gr.sync_block):
                 if input == "remove\n":
                     print(f"received remove at {time.time()}")
 
+                    device_id = self.get_next_var_from_sock(self.conn)
                     print("================================")
-                    print(
-                        f"the device {self.current_device} crashed ! removing it from the list"
-                    )
+                    print(f"the device {device_id} crashed ! removing it from the list")
                     print("================================")
                     # device id to be removed from the list
-                    device_id = self.get_next_var_from_sock(self.conn)
                     cycle = self.get_next_var_from_sock(self.conn)
                     restart_time = self.get_next_var_from_sock(self.conn)
                     restart_list_index = self.get_next_var_from_sock(self.conn)

@@ -180,6 +180,7 @@ private:
   int instantaneous_frequency(const gr_complex *in, int n);
 
   int detect_preamble(const gr_complex *in, gr_complex *out);
+  int sliding_detect_preamble(const gr_complex *in, gr_complex *out);
 
   int detect_sfd(const gr_complex *in, gr_complex *out, const gr_complex *in0);
 
