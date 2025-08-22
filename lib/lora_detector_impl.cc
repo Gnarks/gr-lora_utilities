@@ -6,24 +6,22 @@
  */
 
 #include "lora_detector_impl.h"
-#include <gnuradio/gr_complex.h>
-#include <gnuradio/io_signature.h>
-#include <gnuradio/types.h>
-#include <liquid/liquid.h>
-#include <ostream>
-#include <pmt/pmt.h>
-#include <sys/types.h>
-#include <volk/volk.h>
-#include <volk/volk_complex.h>
-#include <volk/volk_malloc.h>
-
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <ctime>
+#include <gnuradio/gr_complex.h>
+#include <gnuradio/io_signature.h>
+#include <gnuradio/types.h>
 #include <iostream>
+#include <liquid/liquid.h>
+#include <ostream>
+#include <pmt/pmt.h>
+#include <sys/types.h>
 #include <utility>
+#include <volk/volk.h>
+#include <volk/volk_complex.h>
+#include <volk/volk_malloc.h>
 
 namespace gr {
 namespace first_lora {
@@ -143,24 +141,6 @@ uint32_t lora_detector_impl::get_fft_peak_abs(const lv_32fc_t *fft_r, float *b1,
   return peak;
 }
 
-int lora_detector_impl::compare_peak(const gr_complex *in, gr_complex *out) {
-  float max_amplitude = 0.0;
-  for (ulong i = 0; i < d_sn; i++) {
-    // Compute the amplitude of the received sample
-    float amplitude = std::abs(in[i]);
-
-    if (amplitude > max_amplitude) {
-      max_amplitude = amplitude;
-    }
-  }
-
-  if (max_amplitude < d_threshold) {
-    return 0;
-  } else {
-    return 1;
-  }
-}
-
 std::pair<float, uint32_t> lora_detector_impl::dechirp(const gr_complex *in,
                                                        bool is_up) {
   gr_complex *blocks = (gr_complex *)volk_malloc(d_sn * sizeof(gr_complex),
@@ -248,7 +228,8 @@ int lora_detector_impl::detect_preamble(const gr_complex *in, gr_complex *out) {
   // Move preamble peak to bin zero
   //          num_consumed = d_num_samples -
   //          d_p*d_preamble_idx/d_fft_size_factor;
-  num_consumed = d_sn - buffer[0] / 5;
+  //  magic formula (don't question the *4%1024)
+  num_consumed = ((d_sn - buffer[0] / 5) * 4) % 1024;
 
   return num_consumed;
 }
@@ -262,7 +243,6 @@ int lora_detector_impl::detect_sfd(const gr_complex *in, gr_complex *out,
     return 0;
   }
 
-  auto [up_val, up_idx] = dechirp(in, true);
   auto [down_val, down_idx] = dechirp(in, false);
   // If absolute value of down_val is greater then we are in the sfd
   // std::cout << "index is ";
@@ -327,8 +307,8 @@ int lora_detector_impl::general_work(int noutput_items,
       break;
     case 1: { // Preamble
       // std::cout << "State 2\n";
-      num_consumed = sliding_detect_preamble(in, out);
-      // num_consumed = detect_preamble(in, out);
+      // num_consumed = sliding_detect_preamble(in, out);
+      num_consumed = detect_preamble(in, out);
       break;
     }
     case 2: { // SFD
