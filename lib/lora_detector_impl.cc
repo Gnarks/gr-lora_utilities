@@ -28,7 +28,7 @@
 namespace gr {
 namespace first_lora {
 
-#define DEMOD_HISTORY (8 + 4.25)
+#define DEMOD_HISTORY (8 + 5)
 
 int write_f_to_file(float *f, const char *filename, int n);
 
@@ -227,15 +227,12 @@ int lora_detector_impl::sliding_detect_preamble(const gr_complex *in,
   int symbol = buffer[0] / 5;
   int offset = 1;
 
-  std::cout << "buffer[0] is actually :::: " << buffer[0] / 5 << std::endl;
-  while (symbol < 1014 && symbol >= 10) {
+  while (symbol >= 10) {
     auto [up_val, up_idx] = dechirp(&in[offset], true);
 
     symbol = up_idx / 5;
-    offset += 5;
+    offset += 3;
   }
-  std::cout << "sliding offset is actually :::: " << offset << std::endl;
-  std::cout << "minus offset is   :::: " << d_sn - buffer[0] / 5 << std::endl;
   num_consumed = offset;
 
   return num_consumed;
@@ -259,7 +256,6 @@ int lora_detector_impl::detect_preamble(const gr_complex *in, gr_complex *out) {
 int lora_detector_impl::detect_sfd(const gr_complex *in, gr_complex *out,
                                    const gr_complex *in0) {
   int num_consumed = d_sn;
-  detected = false;
 
   if (d_sfd_recovery++ > 5) {
     d_state = 0;
@@ -269,15 +265,16 @@ int lora_detector_impl::detect_sfd(const gr_complex *in, gr_complex *out,
   auto [up_val, up_idx] = dechirp(in, true);
   auto [down_val, down_idx] = dechirp(in, false);
   // If absolute value of down_val is greater then we are in the sfd
-  if (abs(up_val) >= abs(down_val)) {
-    return num_consumed;
+  // std::cout << "index is ";
+  std::cout << down_idx / 5 << std::endl;
+  if (down_idx / 5 <= 10) {
+    d_state = 3;
+    num_consumed = 3 * d_sn;
+
+    // std::cout << "final index is ";
+    // std::cout << down_idx / 5 << std::endl;
   }
 
-  // changed from 1.25 to 2
-  num_consumed = round(2 * d_sn);
-
-  // detected = true;
-  d_state = 3;
   return num_consumed;
 }
 
@@ -297,8 +294,8 @@ int lora_detector_impl::general_work(int noutput_items,
   auto in0 = static_cast<const input_type *>(input_items[0]);
 
   // changed from 1 to 0.25
-  auto in =
-      &in0[(int)(d_sn * (DEMOD_HISTORY - 0.25))]; // Get the last lora symbol
+  // kept 1
+  auto in = &in0[(int)(d_sn * (DEMOD_HISTORY - 1))]; // Get the last lora symbol
   auto out = static_cast<output_type *>(output_items[0]);
   uint32_t num_consumed = d_sn;
 
@@ -330,8 +327,8 @@ int lora_detector_impl::general_work(int noutput_items,
       break;
     case 1: { // Preamble
       // std::cout << "State 2\n";
-      // num_consumed = sliding_detect_preamble(in, out);
-      num_consumed = detect_preamble(in, out);
+      num_consumed = sliding_detect_preamble(in, out);
+      // num_consumed = detect_preamble(in, out);
       break;
     }
     case 2: { // SFD
@@ -358,9 +355,18 @@ int lora_detector_impl::general_work(int noutput_items,
       return -1;
     }
 
-    // Dechirp https://dl.acm.org/doi/10.1145/3546869#d1e1181
-    volk_32fc_x2_multiply_32fc(blocks, in, &d_ref_downchirp[0], d_sn);
+    std::cout << "the downchirp fft peak is :" << std::endl;
+    auto [up_val, up_idx] = dechirp(&d_ref_downchirp[0], false);
+    int symbol = up_idx / 5;
+    std::cout << symbol << std::endl;
 
+    std::cout << "the upchirp fft peak is :" << std::endl;
+    auto [up_val1, up_idx1] = dechirp(&d_ref_upchirp[0], true);
+    symbol = up_idx1 / 5;
+
+    std::cout << symbol << std::endl;
+
+    exit(0);
     // Set the output to be the reference downchirp
     memcpy(out, &d_ref_upchirp[0], d_sn * sizeof(gr_complex));
     consume_each(d_sn);
@@ -390,6 +396,7 @@ int lora_detector_impl::general_work(int noutput_items,
     memcpy(out, in0, DEMOD_HISTORY * d_sn * sizeof(gr_complex));
 
     consume_each(DEMOD_HISTORY * d_sn);
+    d_state = 0;
     return DEMOD_HISTORY * d_sn;
   } else {
     // If no peak is detected, we do not want to output anything
