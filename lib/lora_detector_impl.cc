@@ -231,7 +231,7 @@ int lora_detector_impl::sliding_detect_preamble(const gr_complex *in,
     auto [up_val, up_idx] = dechirp(&in[offset], true);
 
     symbol = up_idx / 5;
-    offset += 3;
+    offset += 5;
   }
   num_consumed = offset;
 
@@ -266,7 +266,7 @@ int lora_detector_impl::detect_sfd(const gr_complex *in, gr_complex *out,
   auto [down_val, down_idx] = dechirp(in, false);
   // If absolute value of down_val is greater then we are in the sfd
   // std::cout << "index is ";
-  std::cout << down_idx / 5 << std::endl;
+  // std::cout << down_idx / 5 << std::endl;
   if (down_idx / 5 <= 10) {
     d_state = 3;
     num_consumed = 3 * d_sn;
