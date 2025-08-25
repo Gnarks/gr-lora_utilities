@@ -134,6 +134,7 @@ class file_writer(gr.basic_block):
                     self.meta[i].set_global_info(
                         {
                             SigMFFile.DATATYPE_KEY: self.datatype,
+                            SigMFFile.VERSION_KEY: "1",
                             SigMFFile.SAMPLE_RATE_KEY: self.sample_rate,
                             SigMFFile.DESCRIPTION_KEY: self.description,
                             SigMFFile.AUTHOR_KEY: self.author,
